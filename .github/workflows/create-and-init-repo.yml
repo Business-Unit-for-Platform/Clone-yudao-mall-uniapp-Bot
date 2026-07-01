@@ -7,6 +7,14 @@ on:
         description: "目标 GitHub 组织名"
         required: false
         default: "Business-Unit-for-Platform"
+      source_url:
+        description: "源仓库 URL（默认官方 Gitee，可改为当前组织或其它组织的 GitHub URL）"
+        required: false
+        default: "https://gitee.com/yudaocode/yudao-mall-uniapp.git"
+      source_ref:
+        description: "源分支/标签（留空则使用源仓库默认分支）"
+        required: false
+        default: ""
       repo_name:
         description: "要创建的新 GitHub 仓库名（例如: future-mall-uniapp）"
         required: true
@@ -45,6 +53,8 @@ jobs:
     env:
       ORG: ${{ github.event.inputs.target_org || 'Business-Unit-for-Platform' }}
       NEW_REPO: ${{ github.event.inputs.repo_name }}
+      SOURCE_URL: ${{ github.event.inputs.source_url || 'https://gitee.com/yudaocode/yudao-mall-uniapp.git' }}
+      SOURCE_REF: ${{ github.event.inputs.source_ref || '' }}
       REPO_DESC: ${{ github.event.inputs.repo_description }}
       PRIVATE: ${{ github.event.inputs.private }}
       DEFAULT_BRANCH: ${{ github.event.inputs.default_branch }}
@@ -119,8 +129,11 @@ jobs:
       - name: Clone from Gitee
         run: |
           set -euo pipefail
-          git clone -q --depth=1 --single-branch \
-            https://gitee.com/yudaocode/yudao-mall-uniapp.git source
+          if [ -n "${SOURCE_REF}" ]; then
+            git clone -q -b "${SOURCE_REF}" --depth=1 --single-branch "${SOURCE_URL}" source
+          else
+            git clone -q --depth=1 --single-branch "${SOURCE_URL}" source
+          fi
 
           rm -rf source/.git source/.gitee source/.github \
                  source/README.md source/README-zh_CN.md || true
