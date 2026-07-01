@@ -36,7 +36,7 @@ on:
       custom_domain:
         description: "Pages 自定义域名（例如: mall.fscitech.net；留空则不绑定）"
         required: false
-        default: "mall.fscitech.net"
+        default: ""
       enforce_https:
         description: "是否在 Pages 上强制 HTTPS (true/false)"
         required: false
