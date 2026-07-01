@@ -1,4 +1,4 @@
-name: Create and init UniApp Mall repo (org, Pages + Cloudflare full auto)
+name: Create and init UniApp Mall repo (clone only)
 
 on:
   workflow_dispatch:
@@ -33,23 +33,6 @@ on:
         required: false
         default: "DELETE"
 
-      custom_domain:
-        description: "Pages 自定义域名（例如: mall.fscitech.net；留空则不绑定）"
-        required: false
-        default: ""
-      enforce_https:
-        description: "是否在 Pages 上强制 HTTPS (true/false)"
-        required: false
-        default: "true"
-
-      cloudflare_dns:
-        description: "是否自动在 Cloudflare 写入 CNAME (true/false)"
-        required: false
-        default: "true"
-      cloudflare_proxied:
-        description: "Cloudflare 是否橙云代理 (true/false，建议先 false)"
-        required: false
-        default: "false"
 
 jobs:
   create-and-init:
@@ -69,15 +52,6 @@ jobs:
       DELETE_EXISTING: ${{ github.event.inputs.delete_existing }}
       CONFIRM_DELETE: ${{ github.event.inputs.confirm_delete }}
 
-      CUSTOM_DOMAIN: ${{ github.event.inputs.custom_domain }}
-      ENFORCE_HTTPS: ${{ github.event.inputs.enforce_https }}
-
-      CF_DNS: ${{ github.event.inputs.cloudflare_dns }}
-      CF_PROXIED: ${{ github.event.inputs.cloudflare_proxied }}
-
-      # org secrets
-      CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE }}
-      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
 
     steps:
       - name: Checkout Clone-Bot
@@ -161,22 +135,6 @@ jobs:
           set -euo pipefail
           (cd source && python3 ../tools/replace_all.py)
 
-      - name: Copy workflow templates into new repo
-        run: |
-          set -euo pipefail
-          mkdir -p source/.github/workflows
-
-          cp -f templates/workflows/pages.yml source/.github/workflows/pages.yml
-
-          # 可选：如果你也需要 native-build.yml，就一起带过去
-          if [ -f templates/workflows/native-build.yml ]; then
-            cp -f templates/workflows/native-build.yml source/.github/workflows/native-build.yml
-          fi
-
-          # 触发分支替换为 DEFAULT_BRANCH
-          sed -i "s/branches: \\[ *master *\\]/branches: [ ${DEFAULT_BRANCH} ]/g" source/.github/workflows/*.yml || true
-          sed -i "s/branches: \\[ *main *\\]/branches: [ ${DEFAULT_BRANCH} ]/g"   source/.github/workflows/*.yml || true
-
       - name: Prepare repo content
         run: |
           set -euo pipefail
@@ -251,40 +209,3 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${ORG}/${NEW_REPO}" \
             -d "{\"default_branch\":\"${DEFAULT_BRANCH}\"}" || true
-
-      - name: Cloudflare upsert CNAME (mall -> org.github.io)
-        if: ${{ github.event.inputs.cloudflare_dns == 'true' && github.event.inputs.custom_domain != '' }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${CF_ZONE_ID}" ] || [ -z "${CF_API_TOKEN}" ]; then
-            echo "ERROR: missing Cloudflare secrets CLOUDFLARE_ZONE / CLOUDFLARE_TOKEN"
-            exit 1
-          fi
-
-          python3 tools/cf_upsert_cname.py \
-            --zone-id "${CF_ZONE_ID}" \
-            --token "${CF_API_TOKEN}" \
-            --name "${CUSTOM_DOMAIN}" \
-            --target "${ORG,,}.github.io" \
-            --proxied "${CF_PROXIED}"
-
-      - name: Configure GitHub Pages domain/https (script)
-        if: ${{ github.event.inputs.custom_domain != '' }}
-        run: |
-          set -euo pipefail
-          python3 tools/gh_pages_domain.py \
-            --org "${ORG}" \
-            --repo "${NEW_REPO}" \
-            --branch "${DEFAULT_BRANCH}" \
-            --token "${APP_TOKEN}" \
-            --cname "${CUSTOM_DOMAIN}" \
-            --enforce-https "${ENFORCE_HTTPS}"
-
-      - name: Print URLs
-        run: |
-          set -euo pipefail
-          echo "GitHub Pages (default) URL:"
-          echo "https://${ORG,,}.github.io/${NEW_REPO}/"
-          echo "Custom domain:"
-          echo "https://${CUSTOM_DOMAIN}/"
